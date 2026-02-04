@@ -104,64 +104,108 @@ const buildApiUrl = ({ amount = 10, category, difficulty }) => {
 };
 
 /**
- * Fetch quiz questions from OpenTDB API
+ * Helper function to delay execution
+ * @param {number} ms - Milliseconds to wait
+ */
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Fetch quiz questions from OpenTDB API with retry logic
  * @param {Object} options - Quiz options (category, difficulty, amount)
+ * @param {number} retries - Number of retry attempts
  * @returns {Promise<Array>} Array of decoded and formatted questions
  */
-export const fetchQuizQuestions = async (options = {}) => {
+export const fetchQuizQuestions = async (options = {}, retries = 3) => {
   const { category = 'any', difficulty = 'any', amount = 10 } = options;
   
-  try {
-    const apiUrl = buildApiUrl({ amount, category, difficulty });
-    const response = await fetch(apiUrl);
-    
-    if (response.status === 429 && lastResults) {
-      return lastResults;
-    }
-    if (!response.ok) {
-      throw new Error('Failed to fetch questions');
-    }
-    
-    const data = await response.json();
-    
-    // Handle different response codes
-    if (data.response_code === 1) {
-      throw new Error('Not enough questions available for the selected options. Try a different category or difficulty.');
-    }
-    if (data.response_code === 2) {
-      throw new Error('Invalid category or difficulty selected.');
-    }
-    if (data.response_code !== 0) {
-      throw new Error('API returned an error');
-    }
-    
-    // Decode HTML entities and shuffle answers
-    const mapped = data.results.map((question) => {
-      const decodedQuestion = decode(question.question);
-      const decodedCorrectAnswer = decode(question.correct_answer);
-      const decodedIncorrectAnswers = question.incorrect_answers.map(answer => 
-        decode(answer)
-      );
+  let lastError = null;
+  
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      // Wait before retry (exponential backoff)
+      if (attempt > 0) {
+        await delay(1000 * attempt);
+      }
       
-      // Combine and shuffle answers
-      const allAnswers = [...decodedIncorrectAnswers, decodedCorrectAnswer];
-      const shuffledAnswers = shuffleArray(allAnswers);
+      const apiUrl = buildApiUrl({ amount, category, difficulty });
+      const response = await fetch(apiUrl);
       
-      return {
-        question: decodedQuestion,
-        correctAnswer: decodedCorrectAnswer,
-        answers: shuffledAnswers,
-        category: question.category,
-        difficulty: question.difficulty,
-      };
-    });
-    lastResults = mapped;
-    lastSuccessAt = Date.now();
-    return mapped;
-  } catch (error) {
-    console.error('Error fetching quiz questions:', error);
-    throw error;
+      // Handle rate limiting
+      if (response.status === 429) {
+        if (lastResults && Date.now() - lastSuccessAt < 60000) {
+          console.log('Rate limited, using cached results');
+          return lastResults;
+        }
+        lastError = new Error('Too many requests. Please wait a moment and try again.');
+        continue;
+      }
+      
+      if (!response.ok) {
+        lastError = new Error(`Server error (${response.status}). Please try again.`);
+        continue;
+      }
+      
+      const data = await response.json();
+      
+      // Handle different response codes
+      if (data.response_code === 1) {
+        throw new Error('Not enough questions available for the selected options. Try a different category or difficulty.');
+      }
+      if (data.response_code === 2) {
+        throw new Error('Invalid category or difficulty selected.');
+      }
+      if (data.response_code === 5) {
+        // Rate limit from API
+        if (lastResults && Date.now() - lastSuccessAt < 60000) {
+          return lastResults;
+        }
+        lastError = new Error('Too many requests. Please wait a moment and try again.');
+        continue;
+      }
+      if (data.response_code !== 0) {
+        lastError = new Error('Quiz service temporarily unavailable. Please try again.');
+        continue;
+      }
+      
+      // Decode HTML entities and shuffle answers
+      const mapped = data.results.map((question) => {
+        const decodedQuestion = decode(question.question);
+        const decodedCorrectAnswer = decode(question.correct_answer);
+        const decodedIncorrectAnswers = question.incorrect_answers.map(answer => 
+          decode(answer)
+        );
+        
+        // Combine and shuffle answers
+        const allAnswers = [...decodedIncorrectAnswers, decodedCorrectAnswer];
+        const shuffledAnswers = shuffleArray(allAnswers);
+        
+        return {
+          question: decodedQuestion,
+          correctAnswer: decodedCorrectAnswer,
+          answers: shuffledAnswers,
+          category: question.category,
+          difficulty: question.difficulty,
+        };
+      });
+      
+      lastResults = mapped;
+      lastSuccessAt = Date.now();
+      return mapped;
+    } catch (error) {
+      console.error(`Attempt ${attempt + 1} failed:`, error);
+      lastError = error;
+      
+      // Don't retry on validation errors
+      if (error.message.includes('Not enough questions') || 
+          error.message.includes('Invalid category')) {
+        throw error;
+      }
+    }
   }
+  
+  // All retries failed
+  console.error('All retry attempts failed:', lastError);
+  throw lastError || new Error('Failed to load questions. Please check your internet connection and try again.');
 };
 
 /**
