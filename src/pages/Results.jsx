@@ -157,16 +157,6 @@ const Results = () => {
     navigate('/quiz');
   };
 
-  const handleNewQuiz = () => {
-    resetQuiz();
-    navigate('/setup');
-  };
-
-  const handleViewProfile = () => {
-    resetQuiz();
-    navigate('/profile');
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-teal-50 to-amber-50 py-8 px-4 relative overflow-hidden">
       {/* Decorative Elements */}
@@ -459,18 +449,12 @@ const Results = () => {
             </svg>
             Play Again
           </button>
-          <button
-            onClick={handleNewQuiz}
-            className="flex items-center justify-center gap-2 bg-white border-2 border-teal-500 text-teal-600 font-bold py-4 px-8 rounded-xl hover:bg-teal-50 transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 btn-press"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-            </svg>
-            New Category
-          </button>
           {!isGuest && (
             <button
-              onClick={handleViewProfile}
+              onClick={() => {
+                resetQuiz();
+                navigate('/profile');
+              }}
               className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold py-4 px-8 rounded-xl hover:from-purple-600 hover:to-indigo-600 transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-purple-500/30 btn-press"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
