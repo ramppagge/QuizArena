@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuiz } from '../context/QuizContext';
-import { useAuth } from '../context/AuthContext';
 import Timer from '../components/Timer';
 import Question from '../components/Question';
 import ProgressBar from '../components/ProgressBar';
-import AbandonQuizModal, { ABANDON_PENALTY_XP } from '../components/AbandonQuizModal';
 import { getCurrentUser } from '../utils/storage';
 
 const Quiz = () => {
@@ -19,26 +17,16 @@ const Quiz = () => {
     quizStarted,
     hasAttemptedRestore,
     quizPreferences,
-    abandonQuiz,
   } = useQuiz();
-  const { subtractXP, isGuest } = useAuth();
   const navigate = useNavigate();
   const username = getCurrentUser();
   const [showEncouragement, setShowEncouragement] = useState(false);
   const [streak, setStreak] = useState(0);
-  const [showAbandonModal, setShowAbandonModal] = useState(false);
+  const [showQuitModal, setShowQuitModal] = useState(false);
 
-  // Handle quiz abandonment
-  const handleAbandonQuiz = () => {
-    // Apply XP penalty for non-guest users
-    if (!isGuest) {
-      subtractXP(ABANDON_PENALTY_XP);
-    }
-    
-    // Clear quiz state
-    abandonQuiz();
-    
-    // Navigate to quiz setup
+  // Handle quit quiz - just saves progress and goes back
+  const handleQuitQuiz = () => {
+    // Progress is already auto-saved, just navigate back
     navigate('/setup');
   };
 
@@ -212,7 +200,7 @@ const Quiz = () => {
         {/* Footer */}
         <div className="mt-6 flex justify-between items-center">
           <button
-            onClick={() => setShowAbandonModal(true)}
+            onClick={() => setShowQuitModal(true)}
             className="flex items-center gap-2 text-gray-500 hover:text-gray-700 font-medium transition-colors px-4 py-2 rounded-lg hover:bg-white/50"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -227,13 +215,64 @@ const Quiz = () => {
         </div>
       </div>
 
-      {/* Abandon Quiz Modal */}
-      <AbandonQuizModal
-        isOpen={showAbandonModal}
-        onClose={() => setShowAbandonModal(false)}
-        onConfirm={handleAbandonQuiz}
-        isGuest={isGuest}
-      />
+      {/* Quit Quiz Confirmation Modal */}
+      {showQuitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowQuitModal(false)}
+          />
+          
+          {/* Modal */}
+          <div className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 animate-scale-in">
+            {/* Icon */}
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-teal-100 to-emerald-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Title */}
+            <h2 className="text-2xl font-bold text-gray-800 text-center mb-2">
+              Quit Quiz?
+            </h2>
+
+            {/* Description */}
+            <p className="text-gray-600 text-center mb-6">
+              Your progress will be saved. You can continue this quiz later from where you left off.
+            </p>
+
+            {/* Progress Info */}
+            <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-6">
+              <div className="flex items-center justify-center gap-2 text-teal-700">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="font-medium">Progress will be saved automatically</span>
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowQuitModal(false)}
+                className="flex-1 py-3 px-4 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+              >
+                Keep Playing
+              </button>
+              <button
+                onClick={handleQuitQuiz}
+                className="flex-1 py-3 px-4 rounded-xl font-semibold text-white bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 transition-all shadow-lg shadow-teal-500/30"
+              >
+                Quit & Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
