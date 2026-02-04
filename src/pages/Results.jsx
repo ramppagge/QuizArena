@@ -163,6 +163,7 @@ const Results = () => {
   };
 
   const handleViewProfile = () => {
+    resetQuiz();
     navigate('/profile');
   };
 
