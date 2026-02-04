@@ -39,7 +39,7 @@ const Quiz = () => {
     abandonQuiz();
     
     // Navigate to quiz setup
-    navigate('/quiz-setup');
+    navigate('/setup');
   };
 
   // Calculate current streak
