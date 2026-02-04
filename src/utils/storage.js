@@ -7,6 +7,7 @@ export const STORAGE_KEYS = {
   SCORE: 'quizScore',
   START_TIME: 'quizStartTime',
   TIME_REMAINING: 'quizTimeRemaining',
+  QUIZ_PREFERENCES: 'quizPreferences',
   // New keys for user accounts
   USERS_DB: 'quizUsersDB',
   SESSION: 'quizSession',
@@ -87,6 +88,9 @@ export const saveQuizState = (state) => {
   if (state.startTime) {
     saveToStorage(STORAGE_KEYS.START_TIME, state.startTime);
   }
+  if (state.quizPreferences) {
+    saveToStorage(STORAGE_KEYS.QUIZ_PREFERENCES, state.quizPreferences);
+  }
 };
 
 /**
@@ -100,6 +104,7 @@ export const loadQuizState = () => {
   const score = getFromStorage(STORAGE_KEYS.SCORE);
   const timeRemaining = getFromStorage(STORAGE_KEYS.TIME_REMAINING);
   const startTime = getFromStorage(STORAGE_KEYS.START_TIME);
+  const quizPreferences = getFromStorage(STORAGE_KEYS.QUIZ_PREFERENCES);
   
   if (questions && currentIndex !== null && answers && score !== null) {
     return {
@@ -109,6 +114,12 @@ export const loadQuizState = () => {
       score,
       timeRemaining: timeRemaining !== null ? timeRemaining : 300,
       startTime,
+      quizPreferences: quizPreferences || {
+        category: 'any',
+        difficulty: 'any',
+        categoryName: 'Any Category',
+        difficultyName: 'Any Difficulty',
+      },
     };
   }
   

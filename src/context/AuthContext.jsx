@@ -195,6 +195,36 @@ export const AuthProvider = ({ children }) => {
     };
   };
 
+  // Subtract XP (for penalties like abandoning a quiz)
+  const subtractXP = (amount) => {
+    if (isGuest || !user) return null;
+
+    const users = getUsers();
+    const userProfile = users[user.username.toLowerCase()];
+    
+    if (!userProfile) return null;
+
+    const oldXP = userProfile.xp;
+    const oldLevel = calculateLevel(userProfile.xp);
+    
+    // Ensure XP doesn't go below 0
+    userProfile.xp = Math.max(0, userProfile.xp - amount);
+    const newLevel = calculateLevel(userProfile.xp);
+    userProfile.level = newLevel;
+
+    users[user.username.toLowerCase()] = userProfile;
+    saveUsers(users);
+    setUser({ ...userProfile });
+
+    return {
+      xpLost: oldXP - userProfile.xp,
+      newTotalXP: userProfile.xp,
+      leveledDown: newLevel < oldLevel,
+      oldLevel,
+      newLevel,
+    };
+  };
+
   // Update quiz stats
   const updateStats = (quizResult) => {
     if (isGuest || !user) return;
@@ -371,6 +401,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     continueAsGuest,
     addXP,
+    subtractXP,
     updateStats,
     unlockAchievement,
     checkAchievements,

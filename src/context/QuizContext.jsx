@@ -152,6 +152,91 @@ export const QuizProvider = ({ children }) => {
     setError(null);
   };
 
+  // Check if there's an active quiz in progress
+  const hasActiveQuiz = () => {
+    const savedState = loadQuizState();
+    return savedState && savedState.questions && savedState.questions.length > 0 && savedState.startTime;
+  };
+
+  // Get info about the active quiz (for displaying in modal)
+  const getActiveQuizInfo = () => {
+    const savedState = loadQuizState();
+    if (!savedState || !savedState.questions || savedState.questions.length === 0) {
+      return null;
+    }
+    return {
+      questionsAnswered: savedState.answers ? savedState.answers.filter(a => a !== null).length : 0,
+      totalQuestions: savedState.questions.length,
+      score: savedState.score || 0,
+      preferences: savedState.quizPreferences || { categoryName: 'Unknown', difficultyName: 'Unknown' },
+    };
+  };
+
+  // Abandon current quiz and reset (called after penalty is applied)
+  const abandonQuiz = () => {
+    clearQuizData();
+    setQuestions([]);
+    setCurrentIndex(0);
+    setAnswers([]);
+    setScore(0);
+    setTimeRemaining(TOTAL_TIME);
+    setStartTime(null);
+    setQuizStarted(false);
+    setError(null);
+    setQuizPreferences({
+      category: 'any',
+      difficulty: 'any',
+      categoryName: 'Any Category',
+      difficultyName: 'Any Difficulty',
+    });
+  };
+
+  // Force start a new quiz (used after confirming abandon)
+  const forceStartNewQuiz = async () => {
+    if (isStartingRef.current) {
+      return;
+    }
+    
+    // Clear any existing quiz data first
+    clearQuizData();
+    
+    isStartingRef.current = true;
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Get preferences from sessionStorage
+      const prefsJson = sessionStorage.getItem('quizPreferences');
+      const prefs = prefsJson ? JSON.parse(prefsJson) : {
+        category: 'any',
+        difficulty: 'any',
+        categoryName: 'Any Category',
+        difficultyName: 'Any Difficulty',
+      };
+      
+      setQuizPreferences(prefs);
+      
+      const fetchedQuestions = await fetchQuizQuestions({
+        category: prefs.category,
+        difficulty: prefs.difficulty,
+      });
+      const newStartTime = Date.now();
+      setQuestions(fetchedQuestions);
+      setCurrentIndex(0);
+      setAnswers(new Array(fetchedQuestions.length).fill(null));
+      setScore(0);
+      setTimeRemaining(TOTAL_TIME);
+      setStartTime(newStartTime);
+      setQuizStarted(true);
+    } catch (err) {
+      setError(err.message || 'Failed to load quiz questions. Please try again.');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+      isStartingRef.current = false;
+    }
+  };
+
   const isQuizComplete = () => {
     return currentIndex >= questions.length - 1 && answers[questions.length - 1] !== null;
   };
@@ -187,6 +272,10 @@ export const QuizProvider = ({ children }) => {
     isQuizComplete,
     getResults,
     setTimeRemaining,
+    hasActiveQuiz,
+    getActiveQuizInfo,
+    abandonQuiz,
+    forceStartNewQuiz,
   };
 
   return <QuizContext.Provider value={value}>{children}</QuizContext.Provider>;

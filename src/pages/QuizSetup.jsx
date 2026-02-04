@@ -3,11 +3,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import { fetchCategories, getQuestionCount, DIFFICULTY_LEVELS } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useQuiz } from '../context/QuizContext';
+import AbandonQuizModal, { ABANDON_PENALTY_XP } from '../components/AbandonQuizModal';
 
 const QuizSetup = () => {
   const navigate = useNavigate();
-  const { user, isGuest, logout, calculateLevel, getLevelProgress } = useAuth();
-  const { resetQuiz } = useQuiz();
+  const { user, isGuest, logout, calculateLevel, getLevelProgress, subtractXP } = useAuth();
+  const { resetQuiz, hasActiveQuiz, getActiveQuizInfo, abandonQuiz, forceStartNewQuiz } = useQuiz();
   
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('any');
@@ -16,6 +17,8 @@ const QuizSetup = () => {
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
   const [error, setError] = useState(null);
+  const [showAbandonModal, setShowAbandonModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null); // 'start' or 'quickStart'
 
   // Fetch categories on mount
   useEffect(() => {
@@ -62,8 +65,57 @@ const QuizSetup = () => {
       categoryName: categories.find(c => c.id.toString() === selectedCategory.toString())?.name || 'Any Category',
       difficultyName: DIFFICULTY_LEVELS.find(d => d.id === selectedDifficulty)?.name || 'Any Difficulty',
     }));
+    
+    // Check if there's an active quiz in progress
+    if (hasActiveQuiz()) {
+      setPendingAction('start');
+      setShowAbandonModal(true);
+    } else {
+      navigate('/quiz');
+    }
+  };
+
+  const handleQuickStart = () => {
+    setSelectedCategory('any');
+    setSelectedDifficulty('any');
+    sessionStorage.setItem('quizPreferences', JSON.stringify({
+      category: 'any',
+      difficulty: 'any',
+      categoryName: 'Any Category',
+      difficultyName: 'Any Difficulty',
+    }));
+    
+    // Check if there's an active quiz in progress
+    if (hasActiveQuiz()) {
+      setPendingAction('quickStart');
+      setShowAbandonModal(true);
+    } else {
+      navigate('/quiz');
+    }
+  };
+
+  const handleAbandonAndStart = () => {
+    // Apply XP penalty for non-guest users
+    if (!isGuest) {
+      subtractXP(ABANDON_PENALTY_XP);
+    }
+    
+    // Clear quiz state
+    abandonQuiz();
+    
+    // Close modal
+    setShowAbandonModal(false);
+    
+    // Navigate to quiz
     navigate('/quiz');
   };
+
+  const handleContinueExistingQuiz = () => {
+    setShowAbandonModal(false);
+    navigate('/quiz');
+  };
+
+  const activeQuizInfo = getActiveQuizInfo();
 
   const handleBack = () => {
     resetQuiz();
@@ -360,23 +412,134 @@ const QuizSetup = () => {
         {/* Quick Start Option */}
         <div className="mt-4 text-center">
           <button
-            onClick={() => {
-              setSelectedCategory('any');
-              setSelectedDifficulty('any');
-              sessionStorage.setItem('quizPreferences', JSON.stringify({
-                category: 'any',
-                difficulty: 'any',
-                categoryName: 'Any Category',
-                difficultyName: 'Any Difficulty',
-              }));
-              navigate('/quiz');
-            }}
+            onClick={handleQuickStart}
             className="text-gray-500 hover:text-gray-700 font-medium transition-colors"
           >
             Or start with random questions →
           </button>
         </div>
+
+        {/* Continue Existing Quiz Banner */}
+        {activeQuizInfo && (
+          <div className="mt-6 bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200 rounded-2xl p-4">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-semibold text-teal-800">Quiz in Progress</p>
+                  <p className="text-sm text-teal-600">
+                    {activeQuizInfo.questionsAnswered}/{activeQuizInfo.totalQuestions} answered • {activeQuizInfo.preferences?.categoryName || 'Mixed'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleContinueExistingQuiz}
+                className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white font-semibold rounded-xl transition-colors shadow-md shadow-teal-500/30"
+              >
+                Continue Quiz
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Abandon Quiz Modal - Custom version with option to continue */}
+      {showAbandonModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowAbandonModal(false)}
+          />
+          
+          {/* Modal */}
+          <div className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 animate-scale-in">
+            {/* Warning Icon */}
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Title */}
+            <h2 className="text-2xl font-bold text-gray-800 text-center mb-2">
+              Quiz in Progress
+            </h2>
+
+            {/* Description */}
+            <p className="text-gray-600 text-center mb-2">
+              You have an unfinished quiz. Starting a new one will abandon your current progress.
+            </p>
+
+            {/* Current Quiz Info */}
+            {activeQuizInfo && (
+              <div className="bg-gray-50 rounded-xl p-3 mb-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Progress:</span>
+                  <span className="font-semibold text-gray-700">
+                    {activeQuizInfo.questionsAnswered}/{activeQuizInfo.totalQuestions} answered
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm mt-1">
+                  <span className="text-gray-500">Current Score:</span>
+                  <span className="font-semibold text-gray-700">{activeQuizInfo.score} correct</span>
+                </div>
+              </div>
+            )}
+
+            {/* Penalty Warning */}
+            {!isGuest && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+                <div className="flex items-center justify-center gap-2">
+                  <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                  <span className="font-semibold text-red-600">-{ABANDON_PENALTY_XP} XP Penalty</span>
+                </div>
+                <p className="text-red-500 text-sm text-center mt-1">
+                  Abandoning will cost you experience points
+                </p>
+              </div>
+            )}
+
+            {isGuest && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+                <p className="text-amber-700 text-sm text-center">
+                  As a guest, your progress is not saved. You can start fresh without penalty.
+                </p>
+              </div>
+            )}
+
+            {/* Buttons */}
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleContinueExistingQuiz}
+                className="w-full py-3 px-4 rounded-xl font-semibold text-white bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 transition-all shadow-lg shadow-teal-500/30"
+              >
+                Continue Current Quiz
+              </button>
+              <button
+                onClick={handleAbandonAndStart}
+                className="w-full py-3 px-4 rounded-xl font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors"
+              >
+                Abandon & Start New Quiz
+              </button>
+              <button
+                onClick={() => setShowAbandonModal(false)}
+                className="w-full py-2 px-4 rounded-xl font-medium text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

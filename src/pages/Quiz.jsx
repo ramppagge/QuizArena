@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuiz } from '../context/QuizContext';
+import { useAuth } from '../context/AuthContext';
 import Timer from '../components/Timer';
 import Question from '../components/Question';
 import ProgressBar from '../components/ProgressBar';
+import AbandonQuizModal, { ABANDON_PENALTY_XP } from '../components/AbandonQuizModal';
 import { getCurrentUser } from '../utils/storage';
 
 const Quiz = () => {
@@ -17,11 +19,28 @@ const Quiz = () => {
     quizStarted,
     hasAttemptedRestore,
     quizPreferences,
+    abandonQuiz,
   } = useQuiz();
+  const { subtractXP, isGuest } = useAuth();
   const navigate = useNavigate();
   const username = getCurrentUser();
   const [showEncouragement, setShowEncouragement] = useState(false);
   const [streak, setStreak] = useState(0);
+  const [showAbandonModal, setShowAbandonModal] = useState(false);
+
+  // Handle quiz abandonment
+  const handleAbandonQuiz = () => {
+    // Apply XP penalty for non-guest users
+    if (!isGuest) {
+      subtractXP(ABANDON_PENALTY_XP);
+    }
+    
+    // Clear quiz state
+    abandonQuiz();
+    
+    // Navigate to quiz setup
+    navigate('/quiz-setup');
+  };
 
   // Calculate current streak
   useEffect(() => {
@@ -193,11 +212,7 @@ const Quiz = () => {
         {/* Footer */}
         <div className="mt-6 flex justify-between items-center">
           <button
-            onClick={() => {
-              if (window.confirm('Are you sure you want to quit? Your progress will be saved.')) {
-                navigate('/');
-              }
-            }}
+            onClick={() => setShowAbandonModal(true)}
             className="flex items-center gap-2 text-gray-500 hover:text-gray-700 font-medium transition-colors px-4 py-2 rounded-lg hover:bg-white/50"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -211,6 +226,14 @@ const Quiz = () => {
           </div>
         </div>
       </div>
+
+      {/* Abandon Quiz Modal */}
+      <AbandonQuizModal
+        isOpen={showAbandonModal}
+        onClose={() => setShowAbandonModal(false)}
+        onConfirm={handleAbandonQuiz}
+        isGuest={isGuest}
+      />
     </div>
   );
 };
