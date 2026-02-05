@@ -34,6 +34,7 @@ const Profile = () => {
   };
 
   const handleStartQuiz = () => {
+    resetQuiz();
     navigate('/setup');
   };
 
