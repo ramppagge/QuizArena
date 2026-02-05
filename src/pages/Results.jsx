@@ -451,10 +451,7 @@ const Results = () => {
           </button>
           {!isGuest && (
             <button
-              onClick={() => {
-                resetQuiz();
-                navigate('/profile');
-              }}
+              onClick={() => navigate('/profile')}
               className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold py-4 px-8 rounded-xl hover:from-purple-600 hover:to-indigo-600 transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-purple-500/30 btn-press"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
